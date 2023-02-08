@@ -19,7 +19,7 @@ public class Test {
         ac.createNewKeys();
         String publicKey = ac.getPublicKeyHex();
         String ciphertext = ac.encryptMessage("Hello", publicKey);
-        String decrypted = ac.decryptMessage(ciphertext);
-        System.out.println(decrypted);
+        //String decrypted = ac.decryptMessage(ciphertext);
+        //System.out.println(decrypted);
     }
 }

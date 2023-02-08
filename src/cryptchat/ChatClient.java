@@ -72,6 +72,7 @@ public class ChatClient extends javax.swing.JFrame {
                 jta.append("Connection established: " + client.getRemoteSocketAddress() + "\n");
                 in = new DataInputStream(client.getInputStream());
                 out = new DataOutputStream(client.getOutputStream());
+                Runtime.getRuntime().addShutdownHook(new Disconnect());
 
                 // Server PRVO prihvata public key 
                 out.writeUTF(asymmetric.getPublicKeyHex());
@@ -88,10 +89,8 @@ public class ChatClient extends javax.swing.JFrame {
 
                 while (!stop) {
                     String receivedCipher = in.readUTF();
-                    System.out.println("Recieved coded: " + receivedCipher);
                     // First we decrypt
                     String received = symmetric.decryptMessage(receivedCipher);
-                    System.out.println("Received decoded: " + received);
 
                     StringTokenizer st = new StringTokenizer(received, "#");
                     String type = st.nextToken();
@@ -99,16 +98,46 @@ public class ChatClient extends javax.swing.JFrame {
                     switch (type) {
                         // -m Message
                         case "-m":
+                            // Update user list (we need to know everybodies public key to verify)
+                            //out.writeUTF(symmetric.encryptMessage("-rl#"));
+
                             // Received looks like: -m#sender#message
                             String sender = st.nextToken();
                             String messageCipher = st.nextToken();
-                            String message = asymmetric.decryptMessage(messageCipher);
+
+                            // Decryption and verification
+                            String senderPKey = ""; // We search for the senders public key for verification
+                            boolean verified = false;
+                            boolean senderExists = false;
+                            for (String[] profile : keys) { // Go through all the keys
+                                if (profile[0].equals(sender)) {
+                                    senderPKey = profile[1];
+                                    senderExists = true;
+                                    break;
+                                }
+                            }
+                            if (!senderExists) // If we can't find the sender's name among our list of users, we break
+                            {
+                                break;
+                            }
+
+                            String[] MessageVerify = asymmetric.decryptMessage(messageCipher, senderPKey);
+                            String message = MessageVerify[0];
+
+                            if (MessageVerify[1].equals("true")) {
+                                verified = true;
+                            }
+
                             found = false;
                             // Provjerava da li imamo korisnika u listi aktivnih partnera "logs" i appendamo njegovu poruku
                             for (ChatLog log : logs) {
                                 if (log.getName().equals(sender)) {
                                     found = true;
-                                    log.append(sender + ": " + message);
+                                    if (verified) {
+                                        log.append(sender + ": " + message);
+                                    } else {
+                                        log.append("----------------------\nERROR: Signature cannot be verified.\nMessage from " + sender + " decrypts to: " + message);
+                                    }
                                     if (userList_L.getSelectedValue() != null) {
                                         if (userList_L.getSelectedValue().equals(log.getName())) {
                                             inbox_TA.setText(log.getLog());
@@ -118,7 +147,7 @@ public class ChatClient extends javax.swing.JFrame {
                             }
                             if (!found) {
                                 ChatLog cl = new ChatLog(sender);
-                                cl.append(sender + ":" + message);
+                                cl.append(sender + ": " + message);
                                 if (userList_L.getSelectedValue() != null) {
                                     if (userList_L.getSelectedValue().equals(sender)) {
                                         inbox_TA.setText(cl.getLog());
@@ -310,39 +339,41 @@ public class ChatClient extends javax.swing.JFrame {
     private void send_BActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_send_BActionPerformed
         String recipient = userList_L.getSelectedValue();
         String message = send_TF.getText();
-        String messageCipher;
-        try {
-            for (String[] profile : keys) {
-                if (profile[0].equals(recipient)) {
-                    messageCipher = asymmetric.encryptMessage(message, profile[1]);
-                    String send = "-m#" + recipient + "#" + messageCipher;
-                    this.out.writeUTF(symmetric.encryptMessage(send));//m for message
+        if (recipient != null && !message.equals("")) {
+            String messageCipher;
+            try {
+                for (String[] profile : keys) {
+                    if (profile[0].equals(recipient)) {
+                        messageCipher = asymmetric.encryptMessage(message, profile[1]);
+                        String send = "-m#" + recipient + "#" + messageCipher;
+                        this.out.writeUTF(symmetric.encryptMessage(send));//m for message
+                    }
                 }
+
+                this.send_TF.setText("");
+                System.out.println("Message sent to " + recipient);
+            } catch (IOException ex) {
+                Logger.getLogger(ChatClient.class.getName()).log(Level.SEVERE, null, ex);
             }
 
-            this.send_TF.setText("");
-            System.out.println("Message sent to " + recipient);
-        } catch (IOException ex) {
-            Logger.getLogger(ChatClient.class.getName()).log(Level.SEVERE, null, ex);
-        }
-
-        boolean found = false;
-        for (ChatLog log : this.logs) {
-            if (log.getName().equals(recipient)) {
-                found = true;
-                log.append(clientName + ": " + message);
-                if (userList_L.getSelectedValue().equals(log.getName())) {
-                    inbox_TA.setText(log.getLog());
+            boolean found = false;
+            for (ChatLog log : this.logs) {
+                if (log.getName().equals(recipient)) {
+                    found = true;
+                    log.append(clientName + ": " + message);
+                    if (userList_L.getSelectedValue().equals(log.getName())) {
+                        inbox_TA.setText(log.getLog());
+                    }
                 }
             }
-        }
-        if (!found) {
-            ChatLog cl = new ChatLog(recipient);
-            cl.append(clientName + ": " + message);
-            if (userList_L.getSelectedValue().equals(cl.getName())) {
-                inbox_TA.setText(cl.getLog());
+            if (!found) {
+                ChatLog cl = new ChatLog(recipient);
+                cl.append(clientName + ": " + message);
+                if (userList_L.getSelectedValue().equals(cl.getName())) {
+                    inbox_TA.setText(cl.getLog());
+                }
+                this.logs.add(cl);
             }
-            this.logs.add(cl);
         }
     }//GEN-LAST:event_send_BActionPerformed
 
@@ -387,8 +418,7 @@ public class ChatClient extends javax.swing.JFrame {
             client.close();
             this.notifications_LB.setText("Disconnected!");
             System.out.println("Disconnected from server");
-            
-            
+
             refreshUserList_B.setEnabled(false);
             send_B.setEnabled(false);
             send_TF.setEnabled(false);
@@ -403,21 +433,42 @@ public class ChatClient extends javax.swing.JFrame {
     }//GEN-LAST:event_disconnect_BActionPerformed
 
     private void userList_LValueChanged(javax.swing.event.ListSelectionEvent evt) {//GEN-FIRST:event_userList_LValueChanged
-        boolean found = false;
-        if (userList_L.getSelectedValue().equals("-No active users-")) {
-            found = true;
-        }
-        for (ChatLog log : this.logs) {
-            if (log.getName().equals(userList_L.getSelectedValue())) {
+        if (userList_L.getSelectedValue() != null) {
+            boolean found = false;
+            if (userList_L.getSelectedValue().equals("-No active users-")) {
                 found = true;
-                inbox_TA.setText(log.getLog());
-                break;
             }
-        }
-        if (!found) {
-            inbox_TA.setText("No active chat with " + userList_L.getSelectedValue());
+            for (ChatLog log : this.logs) {
+                if (log.getName().equals(userList_L.getSelectedValue())) {
+                    found = true;
+                    inbox_TA.setText(log.getLog());
+                    break;
+                }
+            }
+            if (!found) {
+                inbox_TA.setText("No active chat with " + userList_L.getSelectedValue());
+            }
+        } else {
+            inbox_TA.setText(":|");
         }
     }//GEN-LAST:event_userList_LValueChanged
+
+    class Disconnect extends Thread {
+
+        public void run() {
+            try {
+                out.writeUTF(symmetric.encryptMessage("-dc#"));
+                stop = true;
+                in.close();
+                out.close();
+                client.close();
+                setVisible(false);
+                dispose();
+            } catch (IOException ex) {
+                Logger.getLogger(ChatClient.class.getName()).log(Level.SEVERE, null, ex);
+            }
+        }
+    }
 
     /**
      * @param args the command line arguments
@@ -436,13 +487,17 @@ public class ChatClient extends javax.swing.JFrame {
                 }
             }
         } catch (ClassNotFoundException ex) {
-            java.util.logging.Logger.getLogger(ChatClient.class.getName()).log(java.util.logging.Level.SEVERE, null, ex);
+            java.util.logging.Logger.getLogger(ChatClient.class
+                    .getName()).log(java.util.logging.Level.SEVERE, null, ex);
         } catch (InstantiationException ex) {
-            java.util.logging.Logger.getLogger(ChatClient.class.getName()).log(java.util.logging.Level.SEVERE, null, ex);
+            java.util.logging.Logger.getLogger(ChatClient.class
+                    .getName()).log(java.util.logging.Level.SEVERE, null, ex);
         } catch (IllegalAccessException ex) {
-            java.util.logging.Logger.getLogger(ChatClient.class.getName()).log(java.util.logging.Level.SEVERE, null, ex);
+            java.util.logging.Logger.getLogger(ChatClient.class
+                    .getName()).log(java.util.logging.Level.SEVERE, null, ex);
         } catch (javax.swing.UnsupportedLookAndFeelException ex) {
-            java.util.logging.Logger.getLogger(ChatClient.class.getName()).log(java.util.logging.Level.SEVERE, null, ex);
+            java.util.logging.Logger.getLogger(ChatClient.class
+                    .getName()).log(java.util.logging.Level.SEVERE, null, ex);
         }
         //</editor-fold>
 

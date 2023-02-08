@@ -101,7 +101,8 @@ class ClientHandler implements Runnable {
             try {
                 receivedCipher = dis.readUTF();
                 received = symmetric.decryptMessage(receivedCipher);
-                System.out.println(this.name + ":" + received);
+                if(received.length()>40)
+                    System.out.println(this.name + ":" + received.substring(0, 40));
 
                 // message # recipient
                 StringTokenizer st = new StringTokenizer(received, "#");
