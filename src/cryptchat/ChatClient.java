@@ -34,7 +34,6 @@ public class ChatClient extends javax.swing.JFrame {
     List<String[]> keys; // Public keys of other users
     static AsymmetricC asymmetric;
     static SymmetricC symmetric;
-    
 
     public ChatClient() {
         initComponents();
@@ -66,13 +65,13 @@ public class ChatClient extends javax.swing.JFrame {
         public void run() {
             try {
                 jta.setText("Connecting to " + serverName + " on port " + port + "\n");
-                try{
+                try {
                     client = new Socket(serverName, port);
-                }catch(Exception e){
+                } catch (Exception e) {
                     connectionNotif_L.setText("Failed to connect to server");
-                    jta.append("Connection failed\nError message:\n"+e.toString());
+                    jta.append("Connection failed\nError message:\n" + e.toString());
                 }
-                
+
                 in = new DataInputStream(client.getInputStream());
                 out = new DataOutputStream(client.getOutputStream());
                 Runtime.getRuntime().addShutdownHook(new Disconnect());
@@ -86,21 +85,21 @@ public class ChatClient extends javax.swing.JFrame {
 
                 // Send client display name / Server TRECE prihvata ime klijenta pa saljemo
                 out.writeUTF(clientName);
-                
+
                 // Receive confirmation the name isn't taken and terminate runnible in case it isn't / Server CETVRTO potvrdjuje da li je ime slobodno i salje info
                 boolean available = Boolean.parseBoolean(in.readUTF());
-                if(!available){
+                if (!available) {
                     stop = true;
                     in.close();
                     out.close();
                     client.close();
                     connectionNotif_L.setText("Display name is taken. Try another.");
                     jta.append("Connection failed: Display name " + clientName + " is already taken.\n");
-                }else{
+                } else {
                     jta.append("Connection established: " + client.getRemoteSocketAddress() + "\n");
                     // Send a request for user list
                     out.writeUTF(symmetric.encryptMessage("-rl#"));
-                
+
                     // Enable jFrame elements
                     enables(true);
                 }
@@ -116,9 +115,6 @@ public class ChatClient extends javax.swing.JFrame {
                     switch (type) {
                         // -m Message
                         case "-m":
-                            // Update user list (we need to know everybodies public key to verify)
-                            //out.writeUTF(symmetric.encryptMessage("-rl#"));
-
                             // Received looks like: -m#sender#message
                             String sender = st.nextToken();
                             String messageCipher = st.nextToken();
@@ -141,7 +137,7 @@ public class ChatClient extends javax.swing.JFrame {
                             String[] MessageVerify = asymmetric.decryptMessage(messageCipher, senderPKey);
                             String message = MessageVerify[0];
                             boolean verified = Boolean.parseBoolean(MessageVerify[1]);
-                            
+
                             found = false;
                             // We look for the log of the sender and add the new message / Provjerava da li imamo korisnika u listi aktivnih partnera "logs" i appendamo njegovu poruku
                             for (ChatLog log : logs) {
@@ -207,6 +203,9 @@ public class ChatClient extends javax.swing.JFrame {
                             }
                             userList_L.setListData(userListArray);
 
+                            break;
+                        case "-ul":
+                            out.writeUTF(symmetric.encryptMessage("-rl#"));
                             break;
                     }
                 }
@@ -389,38 +388,16 @@ public class ChatClient extends javax.swing.JFrame {
         ClientConnect cc = new ClientConnect(this, true);
         cc.setVisible(true);
         this.resetNotifs();
-        
-        if(cc.connectPressed){
+
+        if (cc.connectPressed) {
             this.serverAdress = cc.serverAdress;
             this.serverPort = cc.port;
             this.clientName = cc.displayName;
-            Thread connection = new Thread(new KSocket(serverAdress ,serverPort, inbox_TA, send_TF));
+            Thread connection = new Thread(new KSocket(serverAdress, serverPort, inbox_TA, send_TF));
             this.stop = false;
             connection.start();
             System.out.println("Connection establsihed with server");
         }
-        
-/*
-        this.clientName = name_TF.getText();
-        if (clientName.length() > 1 && !clientName.contains("#")) {
-            Thread connection = new Thread(new KSocket(serverPort, inbox_TA, send_TF));
-            this.stop = false;
-            connection.start();
-            
-
-            refreshUserList_B.setEnabled(true);
-            send_B.setEnabled(true);
-            send_TF.setEnabled(true);
-            disconnect_B.setEnabled(true);
-            userList_L.setEnabled(true);
-            inbox_TA.setEnabled(true);
-
-            name_TF.setEditable(false);
-            connect_B.setEnabled(false);
-        } else {
-            notifications_LB.setText("You have not entered the name correctly");
-        }
-*/
     }//GEN-LAST:event_connect_BActionPerformed
 
     private void refreshUserList_BActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_refreshUserList_BActionPerformed
@@ -471,7 +448,7 @@ public class ChatClient extends javax.swing.JFrame {
         }
     }//GEN-LAST:event_userList_LValueChanged
 
-    public void enables(boolean enable){
+    public void enables(boolean enable) {
         refreshUserList_B.setEnabled(enable);
         send_B.setEnabled(enable);
         send_TF.setEnabled(enable);
@@ -480,12 +457,12 @@ public class ChatClient extends javax.swing.JFrame {
         inbox_TA.setEditable(enable);
         connect_B.setEnabled(!enable);
     }
-    
-    public void resetNotifs(){
+
+    public void resetNotifs() {
         this.notifications_LB.setText("");
         this.connectionNotif_L.setText("");
     }
-    
+
     class Disconnect extends Thread {
 
         public void run() {
@@ -497,7 +474,7 @@ public class ChatClient extends javax.swing.JFrame {
                 client.close();
                 setVisible(false);
                 dispose();
-                System.exit(0);
+                
             } catch (IOException ex) {
                 Logger.getLogger(ChatClient.class.getName()).log(Level.SEVERE, null, ex);
             }

@@ -61,7 +61,8 @@ public class AsymmetricC {
         }
         return null;
     }
-
+    
+    // Encryption
     public String encryptRSA(String plain, String publicKeyHex) {
         try {
             PublicKey pk = KeyFactory.getInstance(RSA).generatePublic(new X509EncodedKeySpec(this.hex2bytes(publicKeyHex)));
@@ -88,15 +89,16 @@ public class AsymmetricC {
         }
     }
     
-    public String encryptMessage(String plain, String publicKeyHex){
+    public String encryptMessage(String plain, String publicKeyHex){ // Main encryption method used for communication between clients
         SymmetricC symmetric = new SymmetricC();
-        symmetric.createNewKey();
+        symmetric.createNewKey(); // Create unique AES key for the message
         String cipherText = symmetric.encryptMessage(plain);
-        String encodedKey = encryptRSA(symmetric.getKeyHex(), publicKeyHex);
-        String signed = this.sign(symmetric.getKeyHex());
-        return encodedKey + "-" + signed + "-" + cipherText;
+        String encodedKey = encryptRSA(symmetric.getKeyHex(), publicKeyHex); // Encrypt the AES key with the receivers public key using RSA
+        String signed = this.sign(symmetric.getKeyHex()); // Sign the AES key with this users private key
+        return encodedKey + "-" + signed + "-" + cipherText; // All three components are assembled into a string as seen
     }
     
+    // Decryption
     public String decryptRSA(String cipher) {
         try {
             Cipher c = Cipher.getInstance(RSA);
@@ -124,20 +126,16 @@ public class AsymmetricC {
         }
     }
     
-    public String[] decryptMessage(String cipher, String publicKeyHex){
-        StringTokenizer st = new StringTokenizer(cipher, "-");
-        String key = decryptRSA(st.nextToken());
+    public String[] decryptMessage(String cipher, String publicKeyHex){ // Main decryption method used for communication between clients
+        StringTokenizer st = new StringTokenizer(cipher, "-"); // Tokenize the received string which looks like: encryptedKey-signedKey-encryptedMessage
+        String key = decryptRSA(st.nextToken()); // Decrypt the message unique AES key usng our private key with RSA
         String signature = st.nextToken();
-        boolean verified = this.verify(key, signature, publicKeyHex);
-        SymmetricC symmetric = new SymmetricC(key);
-        String message = symmetric.decryptMessage(st.nextToken());
-        String[] MessageVerify = new String[2];
+        boolean verified = this.verify(key, signature, publicKeyHex); // Check if the signature is from the correct user
+        SymmetricC symmetric = new SymmetricC(key); // Initalize the symmetric cryptography class with received AES key
+        String message = symmetric.decryptMessage(st.nextToken()); // Decrypt the message
+        String[] MessageVerify = new String[2]; // Create an array to store the message and the result of verification
         MessageVerify[0] = message;
-        if(verified){
-            MessageVerify[1]="true";
-        }else{
-            MessageVerify[1]="false";
-        }
+        MessageVerify[1] = String.valueOf(verified);
         return MessageVerify;
     }
 

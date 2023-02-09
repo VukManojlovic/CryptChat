@@ -26,7 +26,7 @@ public class Server {
         String clientName;
         String publicKey;
         SymmetricC symmetric = new SymmetricC();
-        
+
         AsymmetricC asymmetric = new AsymmetricC();
 
         while (true) {
@@ -38,26 +38,26 @@ public class Server {
             DataOutputStream dos = new DataOutputStream(s.getOutputStream());
             // getting public key bytes
             publicKey = dis.readUTF();
-            
+
             // Send symmetric key for client handler
             symmetric.createNewKey();
             String key = symmetric.getKeyHex(); // symmetric server - client key
             dos.writeUTF(asymmetric.encryptRSA(key, publicKey)); // encrypting and sending symmetric key
-            System.out.println("Symmetric key: "+symmetric.getKeyHex());
-            
+            System.out.println("Symmetric key: " + symmetric.getKeyHex());
+
             // Getting name from client
             clientName = dis.readUTF();
-            
+
             // Checking if name is available and sending info to client
             boolean nameAvailable = true;
             for (ClientHandler mc : Server.ar) {
                 System.out.println(mc.name + "-" + clientName);
-                if(mc.name.equals(clientName)){
+                if (mc.name.equals(clientName)) {
                     nameAvailable = false;
                 }
             }
             dos.writeUTF(String.valueOf(nameAvailable));
-            if(!nameAvailable){
+            if (!nameAvailable) {
                 System.out.println("Client name unavailable");
                 continue;
             }
@@ -75,6 +75,12 @@ public class Server {
                 System.out.println(ch.name);
             }
 
+            // Notify all current users of the update so they refresh their list of active users
+            for (ClientHandler ch : ar) {
+                if (!ch.name.equals(clientName)) {
+                    ch.dos.writeUTF(ch.symmetric.encryptMessage("-ul#"));
+                }
+            }
             i++;
         }
     }
@@ -88,11 +94,11 @@ class ClientHandler implements Runnable {
     final DataOutputStream dos;
     Socket s;
     boolean isloggedin;
-    boolean stopHandler=false;
+    boolean stopHandler = false;
     String publicKey;
     String key; // symmetric key
     SymmetricC symmetric;
-    
+
     public ClientHandler(Socket s, String name, String key, String publicKey, DataInputStream dis, DataOutputStream dos) {
         this.dis = dis;
         this.dos = dos;
@@ -101,7 +107,7 @@ class ClientHandler implements Runnable {
         this.publicKey = publicKey;
         this.key = key;
         this.isloggedin = true;
-        
+
     }
 
     @Override
@@ -113,8 +119,9 @@ class ClientHandler implements Runnable {
             try {
                 receivedCipher = dis.readUTF();
                 received = symmetric.decryptMessage(receivedCipher);
-                if(received.length()>40)
+                if (received.length() > 40) {
                     System.out.println(this.name + ":" + received.substring(0, 40));
+                }
 
                 // message # recipient
                 StringTokenizer st = new StringTokenizer(received, "#");
@@ -137,14 +144,14 @@ class ClientHandler implements Runnable {
                     // -rl Refresh list
                     case "-rl":
                         String otherConnectedClients = "";
-                        int arSize = Server.ar.size()-1;
+                        int arSize = Server.ar.size() - 1;
                         for (ClientHandler mc : Server.ar) {
                             if (mc.name != this.name) {
                                 otherConnectedClients = otherConnectedClients + mc.name + "#" + mc.publicKey + "#";
                             }
                         }
                         if (otherConnectedClients.equals("")) {
-                            
+
                             otherConnectedClients = "-No active users-";
                         }
                         String send = "-rl#" + arSize + "#" + otherConnectedClients;
@@ -161,12 +168,15 @@ class ClientHandler implements Runnable {
                             this.dis.close();
                             this.dos.close();
                             this.s.close();
-                            this.stopHandler=true;
-                            System.out.println(this.name+" has disconnected");
+                            this.stopHandler = true;
+                            System.out.println(this.name + " has disconnected");
                         } catch (IOException e) {
                             e.printStackTrace();
                         }
-                        
+                        // Notify all current users of the update so they refresh their list of active users
+                        for (ClientHandler ch : Server.ar) {
+                            ch.dos.writeUTF(ch.symmetric.encryptMessage("-ul#"));
+                        }
                         break;
 
                     default:
