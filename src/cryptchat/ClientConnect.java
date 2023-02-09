@@ -21,6 +21,7 @@ public class ClientConnect extends javax.swing.JDialog {
     public ClientConnect(java.awt.Frame parent, boolean modal) {
         super(parent, modal);
         initComponents();
+        this.setLocationRelativeTo(parent);
         this.connectPressed = false;
     }
 

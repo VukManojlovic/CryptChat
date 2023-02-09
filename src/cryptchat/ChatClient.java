@@ -40,7 +40,9 @@ public class ChatClient extends javax.swing.JFrame {
         this.setTitle("CryptChat");
         logs = new ArrayList<>();
         keys = new ArrayList<>();
-
+        
+        this.setLocationRelativeTo(null);
+        
         // Disable parts of jFrame
         this.enables(false);
     }
@@ -515,6 +517,7 @@ public class ChatClient extends javax.swing.JFrame {
         /* Create and display the form */
         java.awt.EventQueue.invokeLater(new Runnable() {
             public void run() {
+                
                 new ChatClient().setVisible(true);
             }
         });
