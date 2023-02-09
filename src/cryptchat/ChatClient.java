@@ -28,21 +28,21 @@ public class ChatClient extends javax.swing.JFrame {
     DataInputStream in = null;
     DataOutputStream out = null;
     String clientName;
-    boolean stop = true;
+    boolean stop = true; // Used in ending KSocket
     Socket client = null;
-    List<ChatLog> logs;
-    List<String[]> keys;
+    List<ChatLog> logs; // List of chat logs with other users
+    List<String[]> keys; // Public keys of other users
     static AsymmetricC asymmetric;
     static SymmetricC symmetric;
     
 
     public ChatClient() {
         initComponents();
-        this.setTitle("Klijent Chat");
+        this.setTitle("CryptChat");
         logs = new ArrayList<>();
         keys = new ArrayList<>();
 
-        // Iskljucujemo dijelove jFrame-a
+        // Disable parts of jFrame
         this.enables(false);
     }
 
@@ -67,7 +67,7 @@ public class ChatClient extends javax.swing.JFrame {
             try {
                 jta.setText("Connecting to " + serverName + " on port " + port + "\n");
                 try{
-                client = new Socket(serverName, port);
+                    client = new Socket(serverName, port);
                 }catch(Exception e){
                     connectionNotif_L.setText("Failed to connect to server");
                     jta.append("Connection failed\nError message:\n"+e.toString());
@@ -77,17 +77,17 @@ public class ChatClient extends javax.swing.JFrame {
                 out = new DataOutputStream(client.getOutputStream());
                 Runtime.getRuntime().addShutdownHook(new Disconnect());
 
-                // Server PRVO prihvata public key 
+                // Send public key to server / Server PRVO prihvata public key 
                 out.writeUTF(asymmetric.getPublicKeyHex());
 
-                // Server DRUGO salje symmetric key
+                // Recieve session key for client server communication / Server DRUGO salje symmetric key
                 symmetric = new SymmetricC(asymmetric.decryptRSA(in.readUTF()));
                 System.out.println("Symmetric key: " + symmetric.getKeyHex());
 
-                // Server TRECE prihvata ime klijenta pa saljemo
+                // Send client display name / Server TRECE prihvata ime klijenta pa saljemo
                 out.writeUTF(clientName);
                 
-                // Server CETVRTO potvrdjuje da li je ime slobodno i salje info
+                // Receive confirmation the name isn't taken and terminate runnible in case it isn't / Server CETVRTO potvrdjuje da li je ime slobodno i salje info
                 boolean available = Boolean.parseBoolean(in.readUTF());
                 if(!available){
                     stop = true;
@@ -106,9 +106,10 @@ public class ChatClient extends javax.swing.JFrame {
                 }
                 while (!stop) {
                     String receivedCipher = in.readUTF();
-                    // First we decrypt
+                    // Decrypt with server session key
                     String received = symmetric.decryptMessage(receivedCipher);
 
+                    // Tokeinze the recived string based on protocol. String example: -m#
                     StringTokenizer st = new StringTokenizer(received, "#");
                     String type = st.nextToken();
                     boolean found;
@@ -124,7 +125,6 @@ public class ChatClient extends javax.swing.JFrame {
 
                             // Decryption and verification
                             String senderPKey = ""; // We search for the senders public key for verification
-                            boolean verified = false;
                             boolean senderExists = false;
                             for (String[] profile : keys) { // Go through all the keys
                                 if (profile[0].equals(sender)) {
@@ -140,13 +140,10 @@ public class ChatClient extends javax.swing.JFrame {
 
                             String[] MessageVerify = asymmetric.decryptMessage(messageCipher, senderPKey);
                             String message = MessageVerify[0];
-
-                            if (MessageVerify[1].equals("true")) {
-                                verified = true;
-                            }
-
+                            boolean verified = Boolean.parseBoolean(MessageVerify[1]);
+                            
                             found = false;
-                            // Provjerava da li imamo korisnika u listi aktivnih partnera "logs" i appendamo njegovu poruku
+                            // We look for the log of the sender and add the new message / Provjerava da li imamo korisnika u listi aktivnih partnera "logs" i appendamo njegovu poruku
                             for (ChatLog log : logs) {
                                 if (log.getName().equals(sender)) {
                                     found = true;
@@ -163,6 +160,7 @@ public class ChatClient extends javax.swing.JFrame {
                                 }
                             }
                             if (!found) {
+                                // If there is no previous log, a new one is created
                                 ChatLog cl = new ChatLog(sender);
                                 cl.append(sender + ": " + message);
                                 if (userList_L.getSelectedValue() != null) {
@@ -184,7 +182,7 @@ public class ChatClient extends javax.swing.JFrame {
                                 userListArray = new String[listSize + 1];
                             }
                             String nextUser;
-                            // Dodajemo javne kljuceve u listu
+                            // Adding public keys of other users to list / Dodajemo javne kljuceve u listu
                             String nextKey;
                             for (int i = 0; i < userListArray.length; i++) {
                                 nextUser = st.nextToken();
