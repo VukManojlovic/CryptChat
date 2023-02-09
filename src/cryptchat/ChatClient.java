@@ -23,7 +23,8 @@ import javax.swing.JTextField;
  */
 public class ChatClient extends javax.swing.JFrame {
 
-    final static int ServerPort = 8080;
+    static int serverPort;
+    static String serverAdress;
     DataInputStream in = null;
     DataOutputStream out = null;
     String clientName;
@@ -33,6 +34,7 @@ public class ChatClient extends javax.swing.JFrame {
     List<String[]> keys;
     static AsymmetricC asymmetric;
     static SymmetricC symmetric;
+    
 
     public ChatClient() {
         initComponents();
@@ -41,12 +43,7 @@ public class ChatClient extends javax.swing.JFrame {
         keys = new ArrayList<>();
 
         // Iskljucujemo dijelove jFrame-a
-        refreshUserList_B.setEnabled(false);
-        send_B.setEnabled(false);
-        send_TF.setEnabled(false);
-        disconnect_B.setEnabled(false);
-        userList_L.setEnabled(false);
-        inbox_TA.setEnabled(false);
+        this.enables(false);
     }
 
     class KSocket implements Runnable {
@@ -54,9 +51,10 @@ public class ChatClient extends javax.swing.JFrame {
         int port;
         JTextArea jta; // Za primanje poruka
         JTextField jtf; // Za slanje poruka
-        String serverName = "localhost";
+        String serverName;
 
-        public KSocket(int port, JTextArea jta, JTextField jtf) {
+        public KSocket(String serverName, int port, JTextArea jta, JTextField jtf) {
+            this.serverName = serverName;
             this.port = port;
             this.jta = jta;
             this.jtf = jtf;
@@ -67,9 +65,14 @@ public class ChatClient extends javax.swing.JFrame {
         @Override
         public void run() {
             try {
-                jta.setText("Connection on " + serverName + " on port " + port + "\n");
+                jta.setText("Connecting to " + serverName + " on port " + port + "\n");
+                try{
                 client = new Socket(serverName, port);
-                jta.append("Connection established: " + client.getRemoteSocketAddress() + "\n");
+                }catch(Exception e){
+                    connectionNotif_L.setText("Failed to connect to server");
+                    jta.append("Connection failed\nError message:\n"+e.toString());
+                }
+                
                 in = new DataInputStream(client.getInputStream());
                 out = new DataOutputStream(client.getOutputStream());
                 Runtime.getRuntime().addShutdownHook(new Disconnect());
@@ -83,10 +86,24 @@ public class ChatClient extends javax.swing.JFrame {
 
                 // Server TRECE prihvata ime klijenta pa saljemo
                 out.writeUTF(clientName);
-
-                // Send a request for user list
-                out.writeUTF(symmetric.encryptMessage("-rl#"));
-
+                
+                // Server CETVRTO potvrdjuje da li je ime slobodno i salje info
+                boolean available = Boolean.parseBoolean(in.readUTF());
+                if(!available){
+                    stop = true;
+                    in.close();
+                    out.close();
+                    client.close();
+                    connectionNotif_L.setText("Display name is taken. Try another.");
+                    jta.append("Connection failed: Display name " + clientName + " is already taken.\n");
+                }else{
+                    jta.append("Connection established: " + client.getRemoteSocketAddress() + "\n");
+                    // Send a request for user list
+                    out.writeUTF(symmetric.encryptMessage("-rl#"));
+                
+                    // Enable jFrame elements
+                    enables(true);
+                }
                 while (!stop) {
                     String receivedCipher = in.readUTF();
                     // First we decrypt
@@ -210,14 +227,13 @@ public class ChatClient extends javax.swing.JFrame {
         send_TF = new javax.swing.JTextField();
         send_B = new javax.swing.JButton();
         connect_B = new javax.swing.JButton();
-        name_TF = new javax.swing.JTextField();
-        jLabel2 = new javax.swing.JLabel();
         jScrollPane2 = new javax.swing.JScrollPane();
         userList_L = new javax.swing.JList<>();
         jLabel3 = new javax.swing.JLabel();
         refreshUserList_B = new javax.swing.JButton();
         notifications_LB = new javax.swing.JLabel();
         disconnect_B = new javax.swing.JButton();
+        connectionNotif_L = new javax.swing.JLabel();
 
         setDefaultCloseOperation(javax.swing.WindowConstants.EXIT_ON_CLOSE);
         setResizable(false);
@@ -234,14 +250,12 @@ public class ChatClient extends javax.swing.JFrame {
             }
         });
 
-        connect_B.setText("Connect");
+        connect_B.setText("Connect to Server");
         connect_B.addActionListener(new java.awt.event.ActionListener() {
             public void actionPerformed(java.awt.event.ActionEvent evt) {
                 connect_BActionPerformed(evt);
             }
         });
-
-        jLabel2.setText("Enter name:");
 
         userList_L.addListSelectionListener(new javax.swing.event.ListSelectionListener() {
             public void valueChanged(javax.swing.event.ListSelectionEvent evt) {
@@ -259,6 +273,8 @@ public class ChatClient extends javax.swing.JFrame {
             }
         });
 
+        notifications_LB.setForeground(new java.awt.Color(255, 51, 0));
+
         disconnect_B.setText("Disconnect");
         disconnect_B.addActionListener(new java.awt.event.ActionListener() {
             public void actionPerformed(java.awt.event.ActionEvent evt) {
@@ -266,71 +282,65 @@ public class ChatClient extends javax.swing.JFrame {
             }
         });
 
+        connectionNotif_L.setForeground(new java.awt.Color(255, 51, 51));
+
         javax.swing.GroupLayout layout = new javax.swing.GroupLayout(getContentPane());
         getContentPane().setLayout(layout);
         layout.setHorizontalGroup(
             layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
             .addGroup(layout.createSequentialGroup()
+                .addContainerGap()
                 .addGroup(layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
                     .addGroup(layout.createSequentialGroup()
-                        .addGroup(layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
+                        .addGroup(layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING, false)
+                            .addComponent(jScrollPane1, javax.swing.GroupLayout.PREFERRED_SIZE, 543, javax.swing.GroupLayout.PREFERRED_SIZE)
                             .addGroup(layout.createSequentialGroup()
-                                .addContainerGap()
-                                .addComponent(send_TF, javax.swing.GroupLayout.PREFERRED_SIZE, 543, javax.swing.GroupLayout.PREFERRED_SIZE))
-                            .addGroup(layout.createSequentialGroup()
-                                .addGap(298, 298, 298)
-                                .addComponent(connect_B))
-                            .addGroup(layout.createSequentialGroup()
-                                .addGap(163, 163, 163)
-                                .addComponent(jLabel2)
-                                .addGap(31, 31, 31)
-                                .addComponent(name_TF, javax.swing.GroupLayout.PREFERRED_SIZE, 165, javax.swing.GroupLayout.PREFERRED_SIZE))
-                            .addGroup(layout.createSequentialGroup()
-                                .addContainerGap()
-                                .addComponent(jScrollPane1, javax.swing.GroupLayout.PREFERRED_SIZE, 543, javax.swing.GroupLayout.PREFERRED_SIZE)))
+                                .addComponent(connect_B, javax.swing.GroupLayout.PREFERRED_SIZE, 133, javax.swing.GroupLayout.PREFERRED_SIZE)
+                                .addGap(18, 18, 18)
+                                .addComponent(connectionNotif_L, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, Short.MAX_VALUE)))
                         .addGap(18, 18, 18)
                         .addGroup(layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
-                            .addComponent(jScrollPane2, javax.swing.GroupLayout.PREFERRED_SIZE, 0, Short.MAX_VALUE)
-                            .addComponent(send_B)
                             .addGroup(layout.createSequentialGroup()
                                 .addComponent(jLabel3)
-                                .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED)
-                                .addComponent(refreshUserList_B))))
+                                .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED, 6, Short.MAX_VALUE)
+                                .addComponent(refreshUserList_B))
+                            .addComponent(jScrollPane2, javax.swing.GroupLayout.PREFERRED_SIZE, 0, Short.MAX_VALUE)))
                     .addGroup(layout.createSequentialGroup()
-                        .addContainerGap()
-                        .addComponent(notifications_LB, javax.swing.GroupLayout.PREFERRED_SIZE, 613, javax.swing.GroupLayout.PREFERRED_SIZE)
-                        .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.UNRELATED, javax.swing.GroupLayout.DEFAULT_SIZE, Short.MAX_VALUE)
-                        .addComponent(disconnect_B)))
+                        .addGroup(layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
+                            .addGroup(layout.createSequentialGroup()
+                                .addComponent(disconnect_B)
+                                .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED)
+                                .addComponent(notifications_LB, javax.swing.GroupLayout.PREFERRED_SIZE, 613, javax.swing.GroupLayout.PREFERRED_SIZE))
+                            .addGroup(layout.createSequentialGroup()
+                                .addComponent(send_TF, javax.swing.GroupLayout.PREFERRED_SIZE, 543, javax.swing.GroupLayout.PREFERRED_SIZE)
+                                .addGap(18, 18, 18)
+                                .addComponent(send_B)))
+                        .addGap(0, 0, Short.MAX_VALUE)))
                 .addContainerGap())
         );
         layout.setVerticalGroup(
             layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
             .addGroup(layout.createSequentialGroup()
                 .addGap(16, 16, 16)
-                .addGroup(layout.createParallelGroup(javax.swing.GroupLayout.Alignment.BASELINE)
-                    .addComponent(name_TF, javax.swing.GroupLayout.PREFERRED_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.PREFERRED_SIZE)
-                    .addComponent(jLabel2))
-                .addGap(14, 14, 14)
                 .addGroup(layout.createParallelGroup(javax.swing.GroupLayout.Alignment.TRAILING)
-                    .addComponent(connect_B)
                     .addGroup(layout.createParallelGroup(javax.swing.GroupLayout.Alignment.BASELINE)
+                        .addComponent(connect_B)
                         .addComponent(jLabel3)
-                        .addComponent(refreshUserList_B)))
-                .addGap(13, 13, 13)
+                        .addComponent(refreshUserList_B))
+                    .addComponent(connectionNotif_L, javax.swing.GroupLayout.PREFERRED_SIZE, 26, javax.swing.GroupLayout.PREFERRED_SIZE))
+                .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.UNRELATED)
+                .addGroup(layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING, false)
+                    .addComponent(jScrollPane1, javax.swing.GroupLayout.DEFAULT_SIZE, 283, Short.MAX_VALUE)
+                    .addComponent(jScrollPane2))
+                .addGap(18, 18, 18)
+                .addGroup(layout.createParallelGroup(javax.swing.GroupLayout.Alignment.BASELINE)
+                    .addComponent(send_TF, javax.swing.GroupLayout.PREFERRED_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.PREFERRED_SIZE)
+                    .addComponent(send_B))
+                .addGap(18, 18, 18)
                 .addGroup(layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
-                    .addComponent(jScrollPane1, javax.swing.GroupLayout.PREFERRED_SIZE, 283, javax.swing.GroupLayout.PREFERRED_SIZE)
-                    .addComponent(jScrollPane2, javax.swing.GroupLayout.PREFERRED_SIZE, 289, javax.swing.GroupLayout.PREFERRED_SIZE))
-                .addGroup(layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
-                    .addGroup(layout.createSequentialGroup()
-                        .addGroup(layout.createParallelGroup(javax.swing.GroupLayout.Alignment.BASELINE)
-                            .addComponent(send_TF, javax.swing.GroupLayout.PREFERRED_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.PREFERRED_SIZE)
-                            .addComponent(send_B))
-                        .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED, 37, Short.MAX_VALUE)
-                        .addComponent(notifications_LB, javax.swing.GroupLayout.PREFERRED_SIZE, 16, javax.swing.GroupLayout.PREFERRED_SIZE))
-                    .addGroup(layout.createSequentialGroup()
-                        .addGap(0, 0, Short.MAX_VALUE)
-                        .addComponent(disconnect_B)))
-                .addContainerGap())
+                    .addComponent(disconnect_B)
+                    .addComponent(notifications_LB, javax.swing.GroupLayout.PREFERRED_SIZE, 16, javax.swing.GroupLayout.PREFERRED_SIZE))
+                .addContainerGap(javax.swing.GroupLayout.DEFAULT_SIZE, Short.MAX_VALUE))
         );
 
         pack();
@@ -378,12 +388,27 @@ public class ChatClient extends javax.swing.JFrame {
     }//GEN-LAST:event_send_BActionPerformed
 
     private void connect_BActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_connect_BActionPerformed
-        this.clientName = name_TF.getText();
-        if (clientName.length() > 1 && !clientName.contains("#")) {
-            Thread connection = new Thread(new KSocket(ServerPort, inbox_TA, send_TF));
+        ClientConnect cc = new ClientConnect(this, true);
+        cc.setVisible(true);
+        this.resetNotifs();
+        
+        if(cc.connectPressed){
+            this.serverAdress = cc.serverAdress;
+            this.serverPort = cc.port;
+            this.clientName = cc.displayName;
+            Thread connection = new Thread(new KSocket(serverAdress ,serverPort, inbox_TA, send_TF));
             this.stop = false;
             connection.start();
             System.out.println("Connection establsihed with server");
+        }
+        
+/*
+        this.clientName = name_TF.getText();
+        if (clientName.length() > 1 && !clientName.contains("#")) {
+            Thread connection = new Thread(new KSocket(serverPort, inbox_TA, send_TF));
+            this.stop = false;
+            connection.start();
+            
 
             refreshUserList_B.setEnabled(true);
             send_B.setEnabled(true);
@@ -397,7 +422,7 @@ public class ChatClient extends javax.swing.JFrame {
         } else {
             notifications_LB.setText("You have not entered the name correctly");
         }
-
+*/
     }//GEN-LAST:event_connect_BActionPerformed
 
     private void refreshUserList_BActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_refreshUserList_BActionPerformed
@@ -416,17 +441,12 @@ public class ChatClient extends javax.swing.JFrame {
             in.close();
             out.close();
             client.close();
+            this.resetNotifs();
+            this.inbox_TA.setText("");
             this.notifications_LB.setText("Disconnected!");
             System.out.println("Disconnected from server");
 
-            refreshUserList_B.setEnabled(false);
-            send_B.setEnabled(false);
-            send_TF.setEnabled(false);
-            disconnect_B.setEnabled(false);
-            userList_L.setEnabled(false);
-            inbox_TA.setEnabled(false);
-            name_TF.setEditable(true);
-            connect_B.setEnabled(true);
+            this.enables(false);
         } catch (IOException ex) {
             Logger.getLogger(ChatClient.class.getName()).log(Level.SEVERE, null, ex);
         }
@@ -453,6 +473,21 @@ public class ChatClient extends javax.swing.JFrame {
         }
     }//GEN-LAST:event_userList_LValueChanged
 
+    public void enables(boolean enable){
+        refreshUserList_B.setEnabled(enable);
+        send_B.setEnabled(enable);
+        send_TF.setEnabled(enable);
+        disconnect_B.setEnabled(enable);
+        userList_L.setEnabled(enable);
+        inbox_TA.setEditable(enable);
+        connect_B.setEnabled(!enable);
+    }
+    
+    public void resetNotifs(){
+        this.notifications_LB.setText("");
+        this.connectionNotif_L.setText("");
+    }
+    
     class Disconnect extends Thread {
 
         public void run() {
@@ -464,6 +499,7 @@ public class ChatClient extends javax.swing.JFrame {
                 client.close();
                 setVisible(false);
                 dispose();
+                System.exit(0);
             } catch (IOException ex) {
                 Logger.getLogger(ChatClient.class.getName()).log(Level.SEVERE, null, ex);
             }
@@ -511,13 +547,12 @@ public class ChatClient extends javax.swing.JFrame {
 
     // Variables declaration - do not modify//GEN-BEGIN:variables
     private javax.swing.JButton connect_B;
+    private javax.swing.JLabel connectionNotif_L;
     private javax.swing.JButton disconnect_B;
     private javax.swing.JTextArea inbox_TA;
-    private javax.swing.JLabel jLabel2;
     private javax.swing.JLabel jLabel3;
     private javax.swing.JScrollPane jScrollPane1;
     private javax.swing.JScrollPane jScrollPane2;
-    private javax.swing.JTextField name_TF;
     private javax.swing.JLabel notifications_LB;
     private javax.swing.JButton refreshUserList_B;
     private javax.swing.JButton send_B;

@@ -48,7 +48,19 @@ public class Server {
             // Getting name from client
             clientName = dis.readUTF();
             
-            
+            // Checking if name is available and sending info to client
+            boolean nameAvailable = true;
+            for (ClientHandler mc : Server.ar) {
+                System.out.println(mc.name + "-" + clientName);
+                if(mc.name.equals(clientName)){
+                    nameAvailable = false;
+                }
+            }
+            dos.writeUTF(String.valueOf(nameAvailable));
+            if(!nameAvailable){
+                System.out.println("Client name unavailable");
+                continue;
+            }
 
             System.out.println("Creating a new handler for " + clientName + "...");
             ClientHandler mtch = new ClientHandler(s, clientName, key, publicKey, dis, dos);
@@ -154,6 +166,7 @@ class ClientHandler implements Runnable {
                         } catch (IOException e) {
                             e.printStackTrace();
                         }
+                        
                         break;
 
                     default:
